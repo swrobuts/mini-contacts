@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}mini-contacts{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('index') }}">
+      <span class="brand-mark">mc</span>
+      <span>mini-contacts</span>
+      <span class="brand-sub">Kontakte lokal, in einer SQLite-Datei</span>
+    </a>
+    <a class="btn btn-primary" href="{{ url_for('kontakt_neu') }}">+ Neuer Kontakt</a>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <details class="sql-panel" open>
+    <summary>SQL-Log — was die Datenbank gerade ausgeführt hat</summary>
+    <div class="sql-lines">
+      {% for stmt in sql_log %}
+        <code>{{ stmt }}</code>
+      {% else %}
+        <code class="sql-empty">Noch kein SQL ausgeführt — klick dich durch die App.</code>
+      {% endfor %}
+    </div>
+  </details>
+</body>
+</html>

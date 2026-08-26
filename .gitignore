@@ -1,0 +1,15 @@
+# Laufzeitdaten — die Datenbank entsteht per seed.py bzw. beim ersten Start
+contacts.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# PPTX wird nicht gepusht (GT-Planar-Schriftlizenz) — Build-Skript und
+# PDF-Export liegen im Repo, das Deck ist daraus reproduzierbar
+slides/*.pptx
+
+# Betriebssystem
+.DS_Store
+Thumbs.db

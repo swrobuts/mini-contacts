@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Kontakt bearbeiten' if kontakt else 'Neuer Kontakt' }} — mini-contacts{% endblock %}
+{% block content %}
+<a class="backlink" href="{{ url_for('index') }}">← Zur Übersicht</a>
+<h1>{{ (kontakt['vorname'] ~ ' ' ~ kontakt['nachname']) if kontakt else 'Neuer Kontakt' }}</h1>
+
+<div class="grid-2">
+  <section class="panel">
+    <h2>Stammdaten <span class="table-hint">Tabelle kontakt</span></h2>
+    <form method="post" class="stack">
+      <label>Vorname
+        <input type="text" name="vorname" required value="{{ kontakt['vorname'] if kontakt }}">
+      </label>
+      <label>Nachname
+        <input type="text" name="nachname" required value="{{ kontakt['nachname'] if kontakt }}">
+      </label>
+      <label>Geburtstag
+        <input type="date" name="geburtstag" value="{{ kontakt['geburtstag'] or '' if kontakt }}">
+      </label>
+      <label>Notiz
+        <textarea name="notiz" rows="3">{{ kontakt['notiz'] or '' if kontakt }}</textarea>
+      </label>
+
+      {% if kontakt %}
+      <fieldset>
+        <legend>Gruppen <span class="table-hint">Tabellen gruppe + kontakt_gruppe (N:M)</span></legend>
+        <div class="check-row">
+          {% for g in gruppen %}
+          <label class="check-chip" style="--chip: {{ g['farbe'] }}">
+            <input type="checkbox" name="gruppen" value="{{ g['gruppe_id'] }}"
+                   {{ 'checked' if g['gruppe_id'] in zugeordnet }}>
+            {{ g['name'] }}
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      {% endif %}
+
+      <button class="btn btn-primary" type="submit">Speichern</button>
+    </form>
+  </section>
+
+  {% if kontakt %}
+  <section class="panel">
+    <h2>Kanäle <span class="table-hint">Tabelle kanal (1:N)</span></h2>
+    <ul class="rows">
+      {% for kanal in kanaele %}
+      <li>
+        <span class="row-tag">{{ kanal['typ'] }}</span>
+        <span class="row-value">{{ kanal['wert'] }}</span>
+        <form method="post" action="{{ url_for('kanal_loeschen', kanal_id=kanal['kanal_id']) }}">
+          <input type="hidden" name="kontakt_id" value="{{ kontakt['kontakt_id'] }}">
+          <button class="btn-icon" type="submit" title="Kanal löschen">✕</button>
+        </form>
+      </li>
+      {% else %}
+      <li class="empty">Noch keine Kanäle.</li>
+      {% endfor %}
+    </ul>
+    <form class="inline-form" method="post" action="{{ url_for('kanal_neu', kontakt_id=kontakt['kontakt_id']) }}">
+      <select name="typ">{% for t in kanal_typen %}<option>{{ t }}</option>{% endfor %}</select>
+      <input type="text" name="wert" placeholder="Nummer, Adresse oder URL" required>
+      <button class="btn btn-small" type="submit">Hinzufügen</button>
+    </form>
+
+    <h2>Adressen <span class="table-hint">Tabelle adresse (1:N)</span></h2>
+    <ul class="rows">
+      {% for a in adressen %}
+      <li>
+        <span class="row-tag">{{ a['typ'] }}</span>
+        <span class="row-value">{{ a['strasse'] }} {{ a['hausnummer'] or '' }}, {{ a['plz'] }} {{ a['ort'] }}</span>
+        <form method="post" action="{{ url_for('adresse_loeschen', adresse_id=a['adresse_id']) }}">
+          <input type="hidden" name="kontakt_id" value="{{ kontakt['kontakt_id'] }}">
+          <button class="btn-icon" type="submit" title="Adresse löschen">✕</button>
+        </form>
+      </li>
+      {% else %}
+      <li class="empty">Noch keine Adressen.</li>
+      {% endfor %}
+    </ul>
+    <form class="inline-form addr" method="post" action="{{ url_for('adresse_neu', kontakt_id=kontakt['kontakt_id']) }}">
+      <select name="typ">{% for t in adress_typen %}<option>{{ t }}</option>{% endfor %}</select>
+      <input type="text" name="strasse" placeholder="Straße" required>
+      <input type="text" name="hausnummer" placeholder="Nr." size="4">
+      <input type="text" name="plz" placeholder="PLZ" size="6" required>
+      <input type="text" name="ort" placeholder="Ort" required>
+      <button class="btn btn-small" type="submit">Hinzufügen</button>
+    </form>
+  </section>
+  {% else %}
+  <section class="panel panel-muted">
+    <h2>So geht es weiter</h2>
+    <p>Nach dem Speichern bekommt der Kontakt seinen Primärschlüssel
+      (<code>kontakt_id</code>) von der Datenbank. Danach lassen sich hier
+      Kanäle, Adressen und Gruppen zuordnen — jede Zuordnung ist eine Zeile
+      in einer eigenen Tabelle mit Fremdschlüssel auf den Kontakt.</p>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

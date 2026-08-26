@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="toolbar">
+  <form class="search" method="get" action="{{ url_for('index') }}">
+    <input type="search" name="q" value="{{ suche }}" placeholder="Nach Vor- oder Nachname suchen …" autofocus>
+    {% if aktive_gruppe %}<input type="hidden" name="gruppe" value="{{ aktive_gruppe }}">{% endif %}
+    <button class="btn" type="submit">Suchen</button>
+  </form>
+
+  <div class="chips">
+    <a class="chip {{ 'chip-active' if not aktive_gruppe }}" href="{{ url_for('index', q=suche or none) }}">Alle</a>
+    {% for g in gruppen %}
+      <a class="chip {{ 'chip-active' if aktive_gruppe == g['gruppe_id'] }}"
+         style="--chip: {{ g['farbe'] }}"
+         href="{{ url_for('index', gruppe=g['gruppe_id'], q=suche or none) }}">
+        {{ g['name'] }} <span class="chip-count">{{ g['anzahl'] }}</span>
+      </a>
+    {% endfor %}
+    <form class="chip-form" method="post" action="{{ url_for('gruppe_neu') }}">
+      <input type="text" name="name" placeholder="Neue Gruppe" required>
+      <input type="color" name="farbe" value="#1F7F8C" title="Gruppenfarbe">
+      <button class="btn btn-small" type="submit">Anlegen</button>
+    </form>
+  </div>
+</div>
+
+<p class="result-info">{{ kontakte | length }} Kontakt{{ 'e' if kontakte | length != 1 }} gefunden</p>
+
+<div class="cards">
+  {% for k in kontakte %}
+  <article class="card">
+    <a class="card-body" href="{{ url_for('kontakt_bearbeiten', kontakt_id=k['kontakt_id']) }}">
+      <span class="avatar" data-initials="{{ k['vorname'][0] }}{{ k['nachname'][0] }}"
+            style="--hue: {{ (k['kontakt_id'] * 47) % 360 }}">{{ k['vorname'][0] }}{{ k['nachname'][0] }}</span>
+      <span class="card-text">
+        <strong>{{ k['vorname'] }} {{ k['nachname'] }}</strong>
+        <small>{{ k['email'] or 'keine E-Mail hinterlegt' }}</small>
+        <span class="card-chips">
+          {% for g in gruppen_je_kontakt.get(k['kontakt_id'], []) %}
+            <span class="chip chip-mini" style="--chip: {{ g['farbe'] }}">{{ g['name'] }}</span>
+          {% endfor %}
+        </span>
+      </span>
+    </a>
+    <form method="post" action="{{ url_for('kontakt_loeschen', kontakt_id=k['kontakt_id']) }}"
+          onsubmit="return confirm('{{ k['vorname'] }} {{ k['nachname'] }} wirklich löschen?');">
+      <button class="btn-icon" type="submit" title="Kontakt löschen">✕</button>
+    </form>
+  </article>
+  {% else %}
+  <p class="empty">Keine Kontakte gefunden. Lege den ersten an — oder fülle die Datenbank mit <code>python seed.py</code>.</p>
+  {% endfor %}
+</div>
+{% endblock %}
