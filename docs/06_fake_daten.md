@@ -40,7 +40,7 @@ programmatisch — mit `de_DE` klingen Namen und Adressen deutsch:
 from faker import Faker          # pip install faker
 fake = Faker("de_DE")
 fake.name()          # 'Dr. Ingeborg Hentschel'
-fake.street_address()  # 'Gutkneckstr. 3'
+fake.street_address()  # 'Birkensteige 3'
 fake.email()         # 'ppaffrath@example.net'
 ```
 
