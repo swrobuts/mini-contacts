@@ -15,10 +15,11 @@ flowchart LR
     style D fill:#003E6E,color:#fff
 ```
 
-* **Browser:** reines HTML und CSS, kein JavaScript-Framework. Die UI ist
-  austauschbar — die Datenbank bliebe dieselbe.
+* **Browser:** HTML und CSS mit einem kleinen JavaScript für Löschbestätigung
+  und den Schutz ungespeicherter Formulare, kein JavaScript-Framework.
+  Die UI ist austauschbar — die Datenbank bliebe dieselbe.
 * **Flask:** übersetzt HTTP-Anfragen in SQL und Ergebnisse in HTML.
-  Ein einziges File ([app.py](../app.py), ~200 Zeilen).
+  Ein einziges File ([app.py](../app.py)).
 * **SQLite:** läuft im selben Prozess; `contacts.db` ist die gesamte
   Datenhaltung.
 
@@ -59,13 +60,22 @@ Die vier Grundoperationen jeder datengetriebenen Anwendung:
 Das **SQL-Log-Panel** am unteren Rand der App zeigt die letzten zwölf
 tatsächlich ausgeführten Statements — mit eingesetzten Parametern. Damit
 lässt sich in der Vorlesung jeder Klick live auf sein SQL zurückführen.
+Die Parameterdarstellung stammt aus dem SQLite-Trace; dadurch werden auch
+Apostrophe und Fragezeichen innerhalb von Werten korrekt angezeigt.
+Bei Text mit einem NUL-Zeichen werden SQL und Parameter getrennt mit sichtbaren
+Escapezeichen angezeigt, weil der SQLite-Trace diesen Text sonst abschneidet.
+
+Für die Namenssuche registriert die App auf jeder Verbindung die SQL-Funktion
+`casefold()`, die Python-Unicode-Casefolding verwendet. Damit findet etwa
+`MÜLLER` auch `Müller`. Diese Funktion gehört zur App-Verbindung und ist in
+einer separat gestarteten SQLite-Konsole nicht automatisch vorhanden.
 
 ## 7.4 Zwei Handwerksregeln, die auch im Kleinen gelten
 
 1. **Parametrisierte Abfragen statt String-Basteln.** Alle Werte laufen
    als `?`-Parameter in `execute()` — nie per f-String in das SQL. Das
    verhindert **SQL-Injection** (und ist nebenbei schneller). Das Log-Panel
-   setzt die Parameter nur *für die Anzeige* ein.
+   zeigt die von SQLite expandierten Parameter nur *für die Anzeige* an.
 2. **Integrität gehört in die Datenbank, nicht in die App.** Wertebereiche
    (`CHECK`), Eindeutigkeit (`UNIQUE`), Löschregeln (`ON DELETE CASCADE`) —
    alles im Schema. Die App kann Fehler machen; das Schema hält stand.
@@ -82,6 +92,7 @@ mini-contacts/
 ├── docs/                # dieser Entwurfsweg, Schritt 1-7
 ├── slides/              # Foliendeck zur Fallstudie
 ├── static/style.css     # das gesamte Styling
+├── static/app.js        # Bestätigung und Schutz ungespeicherter Eingaben
 └── templates/           # HTML-Templates (Jinja2)
     ├── base.html        #   Grundgerüst + SQL-Log-Panel
     ├── index.html       #   Kontaktliste, Suche, Gruppenfilter

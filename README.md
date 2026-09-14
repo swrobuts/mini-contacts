@@ -56,6 +56,22 @@ Mehr braucht es nicht: SQLite ist in Python eingebaut, die Datenbank ist
 die Datei `contacts.db` im Projektordner. Zum Zurücksetzen:
 `python seed.py --fresh`.
 
+## Tests
+
+Die Regressionstests verwenden temporäre Datenbanken; die eigene
+`contacts.db` bleibt unverändert:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Die zusätzlichen Tests für Löschbestätigung und ungespeicherte Formulare
+benötigen Node.js (ab Version 18), aber keine npm-Pakete:
+
+```bash
+node --test tests/test_ui.cjs
+```
+
 ## Selbst erkunden
 
 ```bash

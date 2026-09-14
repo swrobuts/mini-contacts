@@ -43,7 +43,7 @@
       </span>
     </a>
     <form method="post" action="{{ url_for('kontakt_loeschen', kontakt_id=k['kontakt_id']) }}"
-          onsubmit="return confirm('{{ k['vorname'] }} {{ k['nachname'] }} wirklich löschen?');">
+          data-confirm="{{ k['vorname'] }} {{ k['nachname'] }} wirklich löschen?">
       <button class="btn-icon" type="submit" title="Kontakt löschen">✕</button>
     </form>
   </article>

@@ -7,18 +7,19 @@
 <div class="grid-2">
   <section class="panel">
     <h2>Stammdaten <span class="table-hint">Tabelle kontakt</span></h2>
-    <form method="post" class="stack">
+    {% if fehler %}<p role="alert">{{ fehler }}</p>{% endif %}
+    <form method="post" class="stack"{% if fehler %} data-unsaved="true"{% endif %}>
       <label>Vorname
-        <input type="text" name="vorname" required value="{{ kontakt['vorname'] if kontakt }}">
+        <input type="text" name="vorname" required value="{{ werte.get('vorname', '') }}">
       </label>
       <label>Nachname
-        <input type="text" name="nachname" required value="{{ kontakt['nachname'] if kontakt }}">
+        <input type="text" name="nachname" required value="{{ werte.get('nachname', '') }}">
       </label>
       <label>Geburtstag
-        <input type="date" name="geburtstag" value="{{ kontakt['geburtstag'] or '' if kontakt }}">
+        <input type="date" name="geburtstag" value="{{ werte.get('geburtstag') or '' }}">
       </label>
       <label>Notiz
-        <textarea name="notiz" rows="3">{{ kontakt['notiz'] or '' if kontakt }}</textarea>
+        <textarea name="notiz" rows="3">{{ werte.get('notiz') or '' }}</textarea>
       </label>
 
       {% if kontakt %}

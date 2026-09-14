@@ -15,7 +15,7 @@ import sqlite3
 from collections import deque
 from pathlib import Path
 
-from flask import Flask, g, redirect, render_template, request, url_for
+from flask import Flask, abort, g, redirect, render_template, request, url_for
 
 BASIS = Path(__file__).parent
 DB_PFAD = BASIS / "contacts.db"
@@ -37,6 +37,9 @@ def get_db() -> sqlite3.Connection:
         erste_nutzung = not DB_PFAD.exists()
         g.db = sqlite3.connect(DB_PFAD)
         g.db.row_factory = sqlite3.Row
+        # LIKE ignoriert Groß-/Kleinschreibung nur für ASCII-Zeichen.
+        g.db.create_function("casefold", 1, lambda wert: wert.casefold(),
+                             deterministic=True)
         # SQLite prüft Fremdschlüssel nur, wenn das je Verbindung
         # eingeschaltet wird — der klassische SQLite-Stolperstein.
         g.db.execute("PRAGMA foreign_keys = ON")
@@ -54,12 +57,43 @@ def close_db(_exc):
 
 def q(sql: str, params: tuple = ()) -> sqlite3.Cursor:
     """Führt SQL aus und protokolliert es lesbar für das Log-Panel."""
-    anzeige = sql
-    for p in params:
-        wert = "NULL" if p is None else f"'{p}'" if isinstance(p, str) else str(p)
-        anzeige = anzeige.replace("?", wert, 1)
-    sql_log.appendleft(anzeige)
-    return get_db().execute(sql, params)
+    db = get_db()
+    statements = []
+    # SQLite expandiert die Parameter selbst, einschließlich Apostrophen
+    # und Fragezeichen in Werten. Nur erfolgreiche Aufrufe protokollieren.
+    db.set_trace_callback(statements.append)
+    try:
+        cursor = db.execute(sql, params)
+    finally:
+        db.set_trace_callback(None)
+    if any(isinstance(wert, str) and "\0" in wert for wert in params):
+        # Der SQLite-Trace kürzt Text am NUL-Zeichen. Für diesen Sonderfall
+        # SQL und Parameter getrennt und mit sichtbaren Escapezeichen zeigen.
+        sql_log.appendleft(f"{sql}\n-- Parameter: {params!r}")
+    elif statements:
+        sql_log.appendleft(statements[-1])
+    return cursor
+
+
+def kontakt_pruefen(kontakt_id: int):
+    kontakt = q("SELECT * FROM kontakt WHERE kontakt_id = ?",
+                (kontakt_id,)).fetchone()
+    if kontakt is None:
+        abort(404, description="Dieser Kontakt existiert nicht mehr.")
+    return kontakt
+
+
+def kontakt_werte(form):
+    return (form.get("vorname", "").strip(),
+            form.get("nachname", "").strip(),
+            form.get("geburtstag") or None,
+            form.get("notiz", "").strip() or None)
+
+
+@app.errorhandler(sqlite3.IntegrityError)
+def integritaetsfehler(_exc):
+    get_db().rollback()
+    return render_template("fehler.html", sql_log=list(sql_log)), 400
 
 
 # ------------------------------------------------------------------- Routen
@@ -79,8 +113,8 @@ def index():
                    AND kg.gruppe_id = ?"""
         params.append(gruppe)
     if suche:
-        sql += " WHERE k.vorname LIKE ? OR k.nachname LIKE ?"
-        params += [f"%{suche}%", f"%{suche}%"]
+        sql += " WHERE casefold(k.vorname) LIKE ? OR casefold(k.nachname) LIKE ?"
+        params += [f"%{suche.casefold()}%", f"%{suche.casefold()}%"]
     sql += " ORDER BY k.nachname, k.vorname"
 
     kontakte = q(sql, tuple(params)).fetchall()
@@ -102,53 +136,67 @@ def index():
 
 @app.route("/kontakt/neu", methods=["GET", "POST"])
 def kontakt_neu():
+    fehler = None
     if request.method == "POST":
-        f = request.form
-        cur = q("INSERT INTO kontakt (vorname, nachname, geburtstag, notiz) "
-                "VALUES (?, ?, ?, ?)",
-                (f["vorname"].strip(), f["nachname"].strip(),
-                 f.get("geburtstag") or None, f.get("notiz", "").strip() or None))
-        get_db().commit()
-        return redirect(url_for("kontakt_bearbeiten", kontakt_id=cur.lastrowid))
+        werte = kontakt_werte(request.form)
+        if not werte[0] or not werte[1]:
+            fehler = "Bitte gib einen Vornamen und einen Nachnamen ein."
+        else:
+            cur = q("INSERT INTO kontakt (vorname, nachname, geburtstag, notiz) "
+                    "VALUES (?, ?, ?, ?)", werte)
+            get_db().commit()
+            return redirect(url_for("kontakt_bearbeiten", kontakt_id=cur.lastrowid))
     return render_template("form.html", kontakt=None, kanaele=[], adressen=[],
                            gruppen=[], zugeordnet=set(),
+                           werte=request.form, fehler=fehler,
                            kanal_typen=KANAL_TYPEN, adress_typen=ADRESS_TYPEN,
-                           sql_log=sql_log)
+                           sql_log=list(sql_log)), 422 if fehler else 200
 
 
 @app.route("/kontakt/<int:kontakt_id>", methods=["GET", "POST"])
 def kontakt_bearbeiten(kontakt_id: int):
     if request.method == "POST":
+        kontakt = kontakt_pruefen(kontakt_id)
+    else:
+        kontakt = q("SELECT * FROM kontakt WHERE kontakt_id = ?",
+                    (kontakt_id,)).fetchone()
+        if kontakt is None:
+            return redirect(url_for("index"))
+    fehler = None
+    if request.method == "POST":
         f = request.form
-        q("UPDATE kontakt SET vorname = ?, nachname = ?, geburtstag = ?, "
-          "notiz = ? WHERE kontakt_id = ?",
-          (f["vorname"].strip(), f["nachname"].strip(),
-           f.get("geburtstag") or None, f.get("notiz", "").strip() or None,
-           kontakt_id))
-        # Gruppenzuordnung (N:M): alte Zuordnungen raus, angehakte rein.
-        q("DELETE FROM kontakt_gruppe WHERE kontakt_id = ?", (kontakt_id,))
-        for gid in f.getlist("gruppen"):
-            q("INSERT INTO kontakt_gruppe (kontakt_id, gruppe_id) "
-              "VALUES (?, ?)", (kontakt_id, int(gid)))
-        get_db().commit()
-        return redirect(url_for("index"))
-
-    kontakt = q("SELECT * FROM kontakt WHERE kontakt_id = ?",
-                (kontakt_id,)).fetchone()
-    if kontakt is None:
-        return redirect(url_for("index"))
+        werte = kontakt_werte(f)
+        try:
+            zugeordnet = {int(gid) for gid in f.getlist("gruppen")}
+        except ValueError:
+            abort(400, description="Ungültige Gruppenauswahl.")
+        if not werte[0] or not werte[1]:
+            fehler = "Bitte gib einen Vornamen und einen Nachnamen ein."
+        else:
+            q("UPDATE kontakt SET vorname = ?, nachname = ?, geburtstag = ?, "
+              "notiz = ? WHERE kontakt_id = ?", (*werte, kontakt_id))
+            # Gruppenzuordnung (N:M): alte Zuordnungen raus, angehakte rein.
+            q("DELETE FROM kontakt_gruppe WHERE kontakt_id = ?", (kontakt_id,))
+            for gid in sorted(zugeordnet):
+                q("INSERT INTO kontakt_gruppe (kontakt_id, gruppe_id) "
+                  "VALUES (?, ?)", (kontakt_id, gid))
+            get_db().commit()
+            return redirect(url_for("index"))
     kanaele = q("SELECT * FROM kanal WHERE kontakt_id = ? ORDER BY typ",
                 (kontakt_id,)).fetchall()
     adressen = q("SELECT * FROM adresse WHERE kontakt_id = ? ORDER BY typ",
                  (kontakt_id,)).fetchall()
     gruppen = q("SELECT * FROM gruppe ORDER BY name").fetchall()
-    zugeordnet = {r["gruppe_id"] for r in
-                  q("SELECT gruppe_id FROM kontakt_gruppe WHERE kontakt_id = ?",
-                    (kontakt_id,)).fetchall()}
+    if request.method == "GET":
+        zugeordnet = {r["gruppe_id"] for r in
+                      q("SELECT gruppe_id FROM kontakt_gruppe WHERE kontakt_id = ?",
+                        (kontakt_id,)).fetchall()}
     return render_template("form.html", kontakt=kontakt, kanaele=kanaele,
                            adressen=adressen, gruppen=gruppen,
+                           werte=request.form if fehler else dict(kontakt),
+                           fehler=fehler,
                            zugeordnet=zugeordnet, kanal_typen=KANAL_TYPEN,
-                           adress_typen=ADRESS_TYPEN, sql_log=sql_log)
+                           adress_typen=ADRESS_TYPEN, sql_log=list(sql_log)), 422 if fehler else 200
 
 
 @app.route("/kontakt/<int:kontakt_id>/loeschen", methods=["POST"])
@@ -162,6 +210,7 @@ def kontakt_loeschen(kontakt_id: int):
 
 @app.route("/kontakt/<int:kontakt_id>/kanal", methods=["POST"])
 def kanal_neu(kontakt_id: int):
+    kontakt_pruefen(kontakt_id)
     f = request.form
     if f.get("wert", "").strip():
         q("INSERT INTO kanal (kontakt_id, typ, wert) VALUES (?, ?, ?)",
@@ -180,6 +229,7 @@ def kanal_loeschen(kanal_id: int):
 
 @app.route("/kontakt/<int:kontakt_id>/adresse", methods=["POST"])
 def adresse_neu(kontakt_id: int):
+    kontakt_pruefen(kontakt_id)
     f = request.form
     if f.get("strasse", "").strip():
         q("INSERT INTO adresse (kontakt_id, typ, strasse, hausnummer, plz, "
@@ -208,7 +258,7 @@ def gruppe_neu():
               (name, request.form.get("farbe", "#003E6E")))
             get_db().commit()
         except sqlite3.IntegrityError:
-            pass  # UNIQUE(name) — Duplikate weist die Datenbank selbst ab
+            get_db().rollback()  # UNIQUE(name) — Duplikate weist die DB ab
     return redirect(url_for("index"))
 
 

@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Die Eingaben konnten nicht gespeichert werden</h1>
+<p role="alert">Bitte prüfe die Angaben. Der Kontakt oder die ausgewählte Gruppe
+  ist möglicherweise nicht mehr vorhanden, oder ein Wert ist ungültig.</p>
+<a class="backlink" href="{{ url_for('index') }}">← Zur Übersicht</a>
+{% endblock %}

@@ -91,13 +91,19 @@ def main() -> None:
     if con.execute("SELECT COUNT(*) FROM kontakt").fetchone()[0] > 0:
         print("contacts.db enthält bereits Daten — nichts zu tun "
               "(mit --fresh neu aufbauen).")
+        con.close()
         return
 
     cur = con.cursor()
+    gruppen_ids = []
     for name, farbe in GRUPPEN:
-        cur.execute("INSERT INTO gruppe (name, farbe) VALUES (?, ?)",
+        cur.execute("INSERT INTO gruppe (name, farbe) VALUES (?, ?) "
+                    "ON CONFLICT(name) DO NOTHING",
                     (name, farbe))
-    gruppen_ids = [r[0] for r in cur.execute("SELECT gruppe_id FROM gruppe")]
+        # Gruppen überleben das Löschen aller Kontakte. Vorhandene Gruppen
+        # samt Farbe wiederverwenden, eigene Gruppen nicht verändern.
+        gruppen_ids.append(cur.execute("SELECT gruppe_id FROM gruppe WHERE name = ?",
+                                      (name,)).fetchone()[0])
 
     paare = {(v, n) for v in VORNAMEN for n in NACHNAMEN}
     for vorname, nachname in random.sample(sorted(paare), 48):
