@@ -2,8 +2,7 @@
 
 **Eine Kontaktverwaltung als komplette Datenbank-Fallstudie** — von der
 Miniwelt über das ER-Modell (Chen), Normalisierung und relationales Modell
-bis zur laufenden CRUD-Anwendung auf SQLite. Entstanden für die Vorlesung
-Datenbanken (THWS Business School).
+bis zur laufenden CRUD-Anwendung auf SQLite. 
 
 ![Kontaktübersicht](docs/img/ui_uebersicht.png)
 
